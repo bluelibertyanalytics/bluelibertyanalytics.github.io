@@ -358,33 +358,47 @@ export default function AdminPage() {
     fetchAll();
   }, [status]);
 
-  const handleUpload = async () => {
-    if (!file || !selectedOrg) {
-      alert("Please select an org and a file");
-      return;
+const handleUpload = async () => {
+  if (!file || !selectedOrg) {
+    alert("Please select an org and a file");
+    return;
+  }
+
+  try {
+    // Determine Content-Type
+    let contentType = file.type;
+    const ext = file.name.split(".").pop().toLowerCase();
+    const shapefileExtensions = ["shp", "shx", "dbf", "prj", "cpg"];
+
+    if (shapefileExtensions.includes(ext)) {
+      contentType = "application/octet-stream"; // binary-safe for shapefile parts
+    } else if (!contentType) {
+      contentType = "application/octet-stream"; // fallback for unknown types
     }
 
-    try {
-      const res = await fetch("/api/s3/upload", {
-        method: "POST",
-        body: JSON.stringify({
-          fileName: file.name,
-          fileType: file.type,
-          targetOrgId: selectedOrg,
-        }),
-        headers: { "Content-Type": "application/json" },
-      });
-      const { url } = await res.json();
-      await fetch(url, { method: "PUT", body: file, headers: { "Content-Type": file.type } });
+    const res = await fetch("/api/s3/upload", {
+      method: "POST",
+      body: JSON.stringify({
+        fileName: file.name,
+        fileType: contentType,
+        targetOrgId: selectedOrg,
+      }),
+      headers: { "Content-Type": "application/json" },
+    });
 
-      alert(`File uploaded to ${selectedOrg}/inbound ✅`);
-      setFile(null);
-      setSelectedOrg("");
-    } catch (err) {
-      console.error(err);
-      alert("Upload failed");
-    }
-  };
+    const { url } = await res.json();
+
+    await fetch(url, { method: "PUT", body: file, headers: { "Content-Type": contentType } });
+
+    alert(`File uploaded to ${selectedOrg}/inbound ✅`);
+    setFile(null);
+    setSelectedOrg("");
+  } catch (err) {
+    console.error(err);
+    alert("Upload failed");
+  }
+};
+
 
   if (status === "loading") return <p>Loading...</p>;
   if (!session) return null;
