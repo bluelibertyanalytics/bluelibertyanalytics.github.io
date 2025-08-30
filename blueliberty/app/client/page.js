@@ -231,10 +231,26 @@ async function handleUpload(file, setOutboundFiles) {
   if (!file) return;
 
   try {
+    // Determine ContentType
+// Determine ContentType
+let contentType = file.type;
+if (!contentType) {
+  const ext = file.name.split(".").pop().toLowerCase();
+  
+  // Handle shapefile components
+  const shapefileExtensions = ["shp", "shx", "dbf", "prj", "cpg"];
+  if (shapefileExtensions.includes(ext)) {
+    contentType = "application/octet-stream";
+  } else {
+    contentType = "application/octet-stream"; // fallback for unknown types
+  }
+}
+
+
     // Step 1: Get presigned URL from API
     const res = await fetch("/api/s3/upload", {
       method: "POST",
-      body: JSON.stringify({ fileName: file.name, fileType: file.type }),
+      body: JSON.stringify({ fileName: file.name, fileType: contentType }),
       headers: { "Content-Type": "application/json" },
     });
 
@@ -245,7 +261,7 @@ async function handleUpload(file, setOutboundFiles) {
     await fetch(url, {
       method: "PUT",
       body: file,
-      headers: { "Content-Type": file.type },
+      headers: { "Content-Type": contentType },
     });
 
     alert("File uploaded!");
@@ -261,6 +277,7 @@ async function handleUpload(file, setOutboundFiles) {
     alert("Upload failed. Please try again.");
   }
 }
+
 
 // Download file
 async function downloadFile(f) {
