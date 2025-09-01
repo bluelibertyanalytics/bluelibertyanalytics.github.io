@@ -49,7 +49,7 @@ Ready to see results? Reach out at bluelibertyanalytics@gmail.com, fill out our 
         <div className="service-card">
           <h4>🏆 Campaign Strategy Consulting</h4>
           <p style={{ color: "var(--dark-carolina)" }}>
-            From city council to US House races, we provide the analytical backbone for your campaign strategy. Our advanced analytics give you the inside edge needed to make informed decisions, allocate resources effectively, and build a path to victory.
+            From city council to US Senate races, we provide the analytical backbone for your campaign strategy. Our advanced analytics give you the inside edge needed to make informed decisions, allocate resources effectively, and build a path to victory.
           </p>
         </div>
       </div>
