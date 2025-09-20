@@ -26,7 +26,7 @@ Ready to see results? Reach out at bluelibertyanalytics@gmail.com, fill out our 
         <div className="service-card">
           <h4>🎯 Lead Scoring & Donation Analytics</h4>
           <p style={{ color: "var(--dark-carolina)" }}>
-            Maximize your fundraising potential with advanced lead scoring algorithms that identify your most promising donor prospects. Utilizing voter files and you individual contributor data, our predictive models can provide you detailed lists of prospective donors to continue growing your fundraising pool.
+            Maximize your fundraising potential with advanced lead scoring algorithms that identify your most promising donor prospects. Utilizing voter files and your individual contributor data, our predictive models can provide you detailed lists of prospective donors to continue growing your fundraising pool.
           </p>
         </div>
         
