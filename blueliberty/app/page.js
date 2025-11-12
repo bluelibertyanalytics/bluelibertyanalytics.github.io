@@ -42,13 +42,14 @@ export default function HomePage() {
           <h3 className="testimonial-heading">Trusted by Winning Campaigns</h3>
           <blockquote>
             <p>
-              "Blue Liberty Analytics provided valuable campaign 
+              &quot;Blue Liberty Analytics provided valuable campaign 
               support with their advanced analytics services, helping us 
               identify strong candidates for fundraising, 
               leveraging historical data to provide insights for 
               growth opportunities, and building models to project 
-              election outcomes and turnout down the home stretch."
+              election outcomes and turnout down the home stretch.&quot;
             </p>
+
             <cite>— Clarence Blalock, Campaign Manager, Peter Hubbard for Georgia PSC</cite>
           </blockquote>
         </section>
