@@ -4,7 +4,7 @@ import { useEffect } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 
-import InquiryForm from "../components/InquiryForm"; // 👈 import form
+import InquiryForm from "../components/InquiryForm";
 
 export default function HomePage() {
   const { data: session, status } = useSession();
@@ -23,10 +23,11 @@ export default function HomePage() {
   return (
     <main className="main-content">
       <div id="home" className="page active">
+        {/* Hero Section */}
         <div className="hero">
           <img
             src="/blue_liberty_logo_blue.png"
-            alt="Blue Liberty Analytics Blue Logo"
+            alt="Blue Liberty Analytics Logo"
             className="cover-logo"
           />
           <h1>Welcome to Winning</h1>
@@ -35,14 +36,29 @@ export default function HomePage() {
             Get the inside edge you need to win your race.
           </p>
         </div>
-      </div>
 
-      {/* 👇 Contact Form at bottom */}
-      <div id="contact" style={{ padding: "4rem 2rem", maxWidth: "800px", margin: "0 auto" }}>
-        <h2 style={{ textAlign: "center", marginBottom: "2rem", color: "var(--dark-carolina)" }}>
-          Get in Touch
-        </h2>
-        <InquiryForm />
+        {/* Testimonial Section */}
+        <section className="testimonial-section">
+          <h3 className="testimonial-heading">Trusted by Winning Campaigns</h3>
+          <blockquote>
+            <p>
+              &quot;Blue Liberty Analytics provided valuable campaign 
+              support with their advanced analytics services, helping us 
+              identify strong candidates for fundraising, 
+              leveraging historical data to provide insights for 
+              growth opportunities, and building models to project 
+              election outcomes and turnout down the home stretch.&quot;
+            </p>
+
+            <cite>— Clarence Blalock, Campaign Manager, Peter Hubbard for Georgia PSC</cite>
+          </blockquote>
+        </section>
+
+        {/* Contact Form */}
+        <section id="contact" className="contact-section">
+          <h2 className="contact-heading">Get in Touch</h2>
+          <InquiryForm />
+        </section>
       </div>
     </main>
   );
