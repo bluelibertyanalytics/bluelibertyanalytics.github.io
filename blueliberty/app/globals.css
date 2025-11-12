@@ -133,6 +133,56 @@ a {
   text-decoration: none;
 }
 
+blockquote {
+  border-left: 4px solid var(--carolina-blue); /* Changed from #ccc */
+  padding-left: 1.5rem; /* Slightly more padding */
+  margin: 2rem 0; /* More vertical space */
+  font-style: italic;
+  color: var(--dark-carolina); /* Use your brand color */
+  background: var(--light-silver); /* Optional: subtle background */
+  padding: 1rem 1rem 1rem 1.5rem; /* Add padding all around */
+  border-radius: 8px; /* Match your card style */
+}
+
+cite {
+  display: block;
+  margin-top: 1rem; /* More space from quote */
+  font-style: normal;
+  font-size: 0.9em;
+  color: #666; /* Slightly lighter than dark-carolina */
+  font-weight: 500; /* Add some weight */
+}
+
+/* --- Testimonial Section --- */
+.testimonial-section {
+  max-width: 800px;
+  margin: 3rem auto;
+  padding: 0 1rem;
+}
+
+.testimonial-heading {
+  text-align: center;
+  color: var(--dark-carolina);
+  font-size: 1.5rem;
+  margin-bottom: 1.5rem;
+  font-weight: 600;
+}
+
+/* --- Contact Section --- */
+.contact-section {
+  padding: 4rem 2rem;
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.contact-heading {
+  text-align: center;
+  margin-bottom: 2rem;
+  color: var(--dark-carolina);
+  font-size: 1.8rem;
+  font-weight: 700;
+}
+
 /* --- Header --- */
 .header {
   background: linear-gradient(135deg, var(--carolina-blue), var(--dark-carolina));
@@ -512,5 +562,44 @@ a {
 @media (max-width: 480px) {
   .cover-logo {
     max-width: 180px;
+  }
+}
+
+/* --- Header Actions (LinkedIn + Login) --- */
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.linkedin-link {
+  color: var(--white);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  transition: all 0.3s ease;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.linkedin-link:hover {
+  background: var(--white);
+  color: var(--carolina-blue);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+}
+
+/* Mobile adjustments */
+@media (max-width: 768px) {
+  .header-actions {
+    flex-direction: column;
+    gap: 0.5rem;
+    width: 100%;
+  }
+  
+  .linkedin-link {
+    margin-bottom: 0.5rem;
   }
 }
