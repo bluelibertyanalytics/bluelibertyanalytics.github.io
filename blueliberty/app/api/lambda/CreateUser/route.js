@@ -20,23 +20,33 @@ export async function POST(request) {
     console.log("Admin check passed ✅");
 
     const body = await request.json();
+    console.log("Received body:", JSON.stringify(body)); // ← add this
     console.log("Request body:", body);
+
+    // ✅ Validate that orgIds is present and is a non-empty array
+    // AFTER
+    const { email, orgIds } = body;
+    if (!email || !Array.isArray(orgIds) || orgIds.length === 0) {
+      return NextResponse.json(
+        { error: "email and at least one orgId are required" },
+        { status: 400 }
+      );
+    }
 
     // Build signed request
     const url = new URL(process.env.LAMBDA_FUNCTION_URL);
-   const httpRequest = new HttpRequest({
-  protocol: url.protocol,
-  hostname: url.hostname,
-  port: url.port,
-  method: "POST",
-  path: url.pathname,
-  headers: {
-    "Content-Type": "application/json",
-    "Host": url.hostname, // ✅ include this
-  },
-  body: JSON.stringify(body),
-});
-
+    const httpRequest = new HttpRequest({
+      protocol: url.protocol,
+      hostname: url.hostname,
+      port: url.port,
+      method: "POST",
+      path: url.pathname,
+      headers: {
+        "Content-Type": "application/json",
+        "Host": url.hostname,
+      },
+      body: JSON.stringify(body),
+    });
 
     const signer = new SignatureV4({
       credentials: defaultProvider(),
@@ -48,7 +58,6 @@ export async function POST(request) {
     const signedRequest = await signer.sign(httpRequest);
     console.log("Signed headers:", signedRequest.headers);
 
-    // Fetch Lambda with signed headers
     const lambdaResponse = await fetch(url.toString(), {
       method: "POST",
       headers: signedRequest.headers,
@@ -58,7 +67,6 @@ export async function POST(request) {
     const text = await lambdaResponse.text();
     console.log("Lambda response text:", text);
 
-    // Attempt to parse JSON
     let result;
     try {
       result = JSON.parse(text);

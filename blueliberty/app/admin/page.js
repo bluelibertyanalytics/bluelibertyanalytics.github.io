@@ -50,6 +50,7 @@ function FileDropZone({ onFileSelect }) {
 
 /** 🔹 User Creation Widget */
 function UserCreationWidget({ orgOptions = [] }) {
+  const [mode, setMode] = useState("new"); // "new" or "addCampaign"
   const [formData, setFormData] = useState({
     email: "",
     firstName: "",
@@ -58,10 +59,9 @@ function UserCreationWidget({ orgOptions = [] }) {
     orgId: "",
     role: "client",
   });
-
-  const [isCreating, setIsCreating] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [message, setMessage] = useState("");
-  const [messageType, setMessageType] = useState(""); // "success" or "error"
+  const [messageType, setMessageType] = useState("");
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -69,249 +69,275 @@ function UserCreationWidget({ orgOptions = [] }) {
   };
 
   const resetForm = () => {
-    setFormData({
-      email: "",
-      firstName: "",
-      lastName: "",
-      orgName: "",
-      orgId: "",
-      role: "client",
-    });
+    setFormData({ email: "", firstName: "", lastName: "", orgName: "", orgId: "", role: "client" });
+    setMessage("");
   };
 
-  const handleCreateUser = async (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
 
-    if (!formData.email || !formData.firstName || !formData.lastName || !formData.orgName || !formData.orgId) {
+    // Validation
+    // AFTER
+    if (mode === "new" && (!formData.email || !formData.firstName || !formData.lastName || !formData.orgName || !formData.orgId)) {
       setMessage("All fields are required");
       setMessageType("error");
       return;
     }
 
-    setIsCreating(true);
+    if (mode === "addCampaign" && (!formData.email || !formData.orgId || !formData.orgName)) {
+      setMessage("Email, Organization ID, and Organization Name are required");
+      setMessageType("error");
+      return;
+    }
+
+    setIsSubmitting(true);
     setMessage("");
 
     try {
-      const lambdaResponse = await fetch("/api/lambda/CreateUser", {
+      const payload = mode === "new"
+        ? {
+            email: formData.email,
+            firstName: formData.firstName,
+            lastName: formData.lastName,
+            orgName: formData.orgName,
+            orgIds: [formData.orgId],  // ✅ always send as array
+            role: formData.role,
+          }
+        : {
+            email: formData.email,
+            orgIds: [formData.orgId],  // ✅ Lambda will ADD to existing set
+            orgName: formData.orgName,
+            // firstName/lastName/role not needed for existing users
+          };
+
+      const res = await fetch("/api/lambda/CreateUser", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(payload),
         credentials: "include",
       });
 
-      const text = await lambdaResponse.text();
-      console.log("Lambda response text:", text);
-
+      const text = await res.text();
       let result;
-      try {
-        result = JSON.parse(text);
-      } catch (parseError) {
-        console.error("Failed to parse Lambda response as JSON:", parseError);
-        setMessage("Invalid response from server");
+      try { result = JSON.parse(text); }
+      catch { result = { raw: text }; }
+
+      if (!res.ok) {
+        setMessage(result.error || "Request failed");
         setMessageType("error");
         return;
       }
 
-      if (!lambdaResponse.ok) {
-        setMessage(result.error || "Failed to create user");
-        setMessageType("error");
-        return;
-      }
-
-      setMessage(`User created successfully! Temporary password: ${result.tempPassword}`);
+      setMessage(
+        mode === "new"
+          ? `User created! Temporary password: ${result.tempPassword}`
+          : `Campaign added to ${formData.email} successfully!`
+      );
       setMessageType("success");
       resetForm();
-    } catch (error) {
-      console.error("Error creating user:", error);
-      setMessage("Network error occurred. Please try again.");
+    } catch (err) {
+      console.error(err);
+      setMessage("Network error. Please try again.");
       setMessageType("error");
     } finally {
-      setIsCreating(false);
+      setIsSubmitting(false);
     }
   };
 
-  return (
-    <div
-      style={{
-        background: "#fff",
-        borderRadius: "12px",
-        padding: "1.5rem",
-        boxShadow: "0 2px 8px rgba(255, 255, 255, 0.08)",
-        height: "fit-content",
-        position: "sticky",
-        top: "2rem",
-      }}
-    >
-      <h2 style={{ marginBottom: "1.5rem", color: "var(--dark-carolina)" }}>Create New User</h2>
+  const inputStyle = {
+    width: "100%",
+    padding: "0.75rem",
+    background: "#fff",
+    color: "#333",
+    border: "1px solid #ddd",
+    borderRadius: "8px",
+    fontSize: "0.9rem",
+  };
 
-      <form onSubmit={handleCreateUser}>
-        {/* Email */}
+  const labelStyle = {
+    display: "block",
+    marginBottom: "0.5rem",
+    fontWeight: 600,
+  };
+
+  return (
+    <div style={{
+      background: "#fff",
+      borderRadius: "12px",
+      padding: "1.5rem",
+      boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
+      height: "fit-content",
+      position: "sticky",
+      top: "2rem",
+    }}>
+      <h2 style={{ marginBottom: "1rem", color: "var(--dark-carolina)" }}>
+        User Management
+      </h2>
+
+      {/* ✅ Mode Toggle */}
+      <div style={{
+        display: "grid",
+        gridTemplateColumns: "1fr 1fr",
+        gap: "0.5rem",
+        marginBottom: "1.5rem",
+      }}>
+        {[
+          { value: "new", label: "New User" },
+          { value: "addCampaign", label: "Add Campaign" },
+        ].map(({ value, label }) => (
+          <button
+            key={value}
+            onClick={() => { setMode(value); resetForm(); }}
+            style={{
+              padding: "0.6rem",
+              borderRadius: "8px",
+              border: "2px solid var(--dark-carolina)",
+              background: mode === value ? "var(--dark-carolina)" : "#fff",
+              color: mode === value ? "#fff" : "var(--dark-carolina)",
+              fontWeight: 600,
+              cursor: "pointer",
+              fontSize: "0.9rem",
+              transition: "all 0.2s",
+            }}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      <form onSubmit={handleSubmit}>
+
+        {/* Email — always shown */}
         <div style={{ marginBottom: "1rem" }}>
-          <label style={{ display: "block", marginBottom: "0.5rem", fontWeight: 600 }}>Email *</label>
+          <label style={labelStyle}>Email *</label>
           <input
             type="email"
             name="email"
             value={formData.email}
             onChange={handleInputChange}
-            required
             placeholder="user@example.com"
-            style={{
-              width: "100%",
-              padding: "0.75rem",
-              background: "#fff",
-              color: "#333",
-              border: "1px solid #ddd",
-              borderRadius: "8px",
-              fontSize: "0.9rem",
-            }}
+            style={inputStyle}
           />
         </div>
 
-        {/* First & Last Name */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem", marginBottom: "1rem" }}>
-          <div>
-            <label style={{ display: "block", marginBottom: "0.5rem", fontWeight: 600 }}>First Name *</label>
-            <input
-              type="text"
-              name="firstName"
-              value={formData.firstName}
-              onChange={handleInputChange}
-              required
-              placeholder="John"
-              style={{
-                width: "100%",
-                padding: "0.75rem",
-                background: "#fff",
-                border: "1px solid #ddd",
-                borderRadius: "8px",
-                fontSize: "0.9rem",
-                color: "#333",
-              }}
-            />
-          </div>
-          <div>
-            <label style={{ display: "block", marginBottom: "0.5rem", fontWeight: 600 }}>Last Name *</label>
-            <input
-              type="text"
-              name="lastName"
-              value={formData.lastName}
-              onChange={handleInputChange}
-              required
-              placeholder="Doe"
-              style={{
-                width: "100%",
-                padding: "0.75rem",
-                background: "#fff",
-                border: "1px solid #ddd",
-                borderRadius: "8px",
-                fontSize: "0.9rem",
-                color: "#333",
-              }}
-            />
-          </div>
-        </div>
+        {/* New user only fields */}
+        {mode === "new" && (
+          <>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem", marginBottom: "1rem" }}>
+              <div>
+                <label style={labelStyle}>First Name *</label>
+                <input
+                  type="text"
+                  name="firstName"
+                  value={formData.firstName}
+                  onChange={handleInputChange}
+                  placeholder="John"
+                  style={inputStyle}
+                />
+              </div>
+              <div>
+                <label style={labelStyle}>Last Name *</label>
+                <input
+                  type="text"
+                  name="lastName"
+                  value={formData.lastName}
+                  onChange={handleInputChange}
+                  placeholder="Doe"
+                  style={inputStyle}
+                />
+              </div>
+            </div>
 
-        {/* Organization Name */}
+            <div style={{ marginBottom: "1rem" }}>
+              <label style={labelStyle}>Role *</label>
+              <select
+                name="role"
+                value={formData.role}
+                onChange={handleInputChange}
+                style={{ ...inputStyle, color: "#555" }}
+              >
+                <option value="client">Client</option>
+                <option value="admin">Admin</option>
+              </select>
+            </div>
+          </>
+        )}
+
+        {/* Add campaign mode hint */}
+        {mode === "addCampaign" && (
+          <div style={{
+            background: "#f0f4ff",
+            border: "1px solid #c7d4f0",
+            borderRadius: "8px",
+            padding: "0.75rem",
+            marginBottom: "1rem",
+            fontSize: "0.85rem",
+            color: "#334",
+          }}>
+            Enter the email of an existing user and the new campaign to add them to.
+          </div>
+        )}
+
+        {/* Org fields — always shown */}
         <div style={{ marginBottom: "1rem" }}>
-          <label style={{ display: "block", marginBottom: "0.5rem", fontWeight: 600 }}>Organization Name *</label>
+          <label style={labelStyle}>Organization Name *</label>
           <input
             type="text"
             name="orgName"
             value={formData.orgName}
             onChange={handleInputChange}
-            required
             placeholder="Example Campaign"
-            style={{
-              width: "100%",
-              padding: "0.75rem",
-              border: "1px solid #ddd",
-              borderRadius: "8px",
-              background: "#fff",
-              fontSize: "0.9rem",
-              color: "#333",
-            }}
+            style={inputStyle}
           />
         </div>
 
-        {/* Organization ID */}
-        <div style={{ marginBottom: "1rem" }}>
-          <label style={{ display: "block", marginBottom: "0.5rem", fontWeight: 600 }}>Organization ID *</label>
+        <div style={{ marginBottom: "1.5rem" }}>
+          <label style={labelStyle}>Organization ID *</label>
           <input
             type="text"
             name="orgId"
             value={formData.orgId}
             onChange={handleInputChange}
-            required
             placeholder="example-campaign"
-            style={{
-              width: "100%",
-              padding: "0.75rem",
-              border: "1px solid #ddd",
-              borderRadius: "8px",
-              fontSize: "0.9rem",
-              background: "#fff",
-              color: "#888",
-            }}
+            style={inputStyle}
           />
         </div>
 
-        {/* Role */}
-        <div style={{ marginBottom: "1.5rem" }}>
-          <label style={{ display: "block", marginBottom: "0.5rem", fontWeight: 600 }}>Role *</label>
-          <select
-            name="role"
-            value={formData.role}
-            onChange={handleInputChange}
-            required
-            style={{
-              width: "100%",
-              padding: "0.75rem",
-              border: "1px solid #ddd",
-              borderRadius: "8px",
-              fontSize: "0.9rem",
-              background: "#fff",
-              color: "#888",
-            }}
-          >
-            <option value="client">Client</option>
-            <option value="admin">Admin</option>
-          </select>
-        </div>
-
+        {/* Message */}
         {message && (
-          <div
-            style={{
-              padding: "0.75rem",
-              marginBottom: "1rem",
-              borderRadius: "8px",
-              fontSize: "0.9rem",
-              background: messageType === "success" ? "#d4edda" : "#f8d7da",
-              color: messageType === "success" ? "#155724" : "#721c24",
-              border: `1px solid ${messageType === "success" ? "#c3e6cb" : "#f5c6cb"}`,
-              wordBreak: "break-word",
-            }}
-          >
+          <div style={{
+            padding: "0.75rem",
+            marginBottom: "1rem",
+            borderRadius: "8px",
+            fontSize: "0.9rem",
+            background: messageType === "success" ? "#d4edda" : "#f8d7da",
+            color: messageType === "success" ? "#155724" : "#721c24",
+            border: `1px solid ${messageType === "success" ? "#c3e6cb" : "#f5c6cb"}`,
+            wordBreak: "break-word",
+          }}>
             {message}
           </div>
         )}
 
         <button
           type="submit"
-          disabled={isCreating}
+          disabled={isSubmitting}
           style={{
             width: "100%",
             padding: "0.75rem",
-            background: isCreating ? "#ccc" : "var(--dark-carolina)",
+            background: isSubmitting ? "#ccc" : "var(--dark-carolina)",
             color: "#fff",
             border: "none",
             borderRadius: "8px",
             fontSize: "1rem",
             fontWeight: 600,
-            cursor: isCreating ? "not-allowed" : "pointer",
+            cursor: isSubmitting ? "not-allowed" : "pointer",
             transition: "background-color 0.2s",
           }}
         >
-          {isCreating ? "Creating User..." : "Create User"}
+          {isSubmitting
+            ? "Please wait..."
+            : mode === "new" ? "Create User" : "Add Campaign"}
         </button>
       </form>
     </div>

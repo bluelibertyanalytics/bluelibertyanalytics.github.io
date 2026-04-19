@@ -6,14 +6,8 @@ import { useState, useEffect } from "react";
 function FileDropZone({ onFileSelect }) {
   const [dragging, setDragging] = useState(false);
 
-  const handleDragOver = (e) => {
-    e.preventDefault();
-    setDragging(true);
-  };
-  const handleDragLeave = (e) => {
-    e.preventDefault();
-    setDragging(false);
-  };
+  const handleDragOver = (e) => { e.preventDefault(); setDragging(true); };
+  const handleDragLeave = (e) => { e.preventDefault(); setDragging(false); };
   const handleDrop = (e) => {
     e.preventDefault();
     setDragging(false);
@@ -53,39 +47,67 @@ export default function ClientPage() {
   const [outboundFiles, setOutboundFiles] = useState([]);
   const [loadingFiles, setLoadingFiles] = useState(true);
 
-  // Fetch inbound & outbound files
+  // ✅ Active campaign state — defaults to first org on login
+  const [activeOrgId, setActiveOrgId] = useState(null);
+  const [activeOrgName, setActiveOrgName] = useState("");
+
+  // ✅ Set initial active org once session loads
   useEffect(() => {
+    if (session?.user?.orgIds?.length > 0 && !activeOrgId) {
+      setActiveOrgId(session.user.orgIds[0].id);
+      setActiveOrgName(session.user.orgIds[0].name);
+    }
+  }, [session]);
+
+  // ✅ Refetch files whenever active campaign changes
+  useEffect(() => {
+    if (!activeOrgId) return;
+
     const fetchFiles = async () => {
       setLoadingFiles(true);
+      setInboundFiles([]);
+      setOutboundFiles([]);
       try {
-        const res = await fetch("/api/s3/listOrgFiles", { method: "POST" });
+        const res = await fetch("/api/s3/listOrgFiles", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          // ✅ Pass the selected orgId so the API knows which folder to list
+          body: JSON.stringify({ orgId: activeOrgId }),
+        });
         const data = await res.json();
         if (!res.ok) throw new Error(data?.error || `Failed with ${res.status}`);
-
         setInboundFiles(data.inbound || []);
         setOutboundFiles(data.outbound || []);
       } catch (err) {
         console.error("Fetch files failed:", err);
-        setInboundFiles([]);
-        setOutboundFiles([]);
       } finally {
         setLoadingFiles(false);
       }
     };
 
-    if (session?.user?.orgId) fetchFiles();
-  }, [session?.user?.orgId]);
+    fetchFiles();
+  }, [activeOrgId]);
+
+  // ✅ Campaign switcher handler
+  const handleCampaignSwitch = (e) => {
+    const selectedId = e.target.value;
+    const selectedOrg = session.user.orgIds.find((o) => o.id === selectedId);
+    setActiveOrgId(selectedId);
+    setActiveOrgName(selectedOrg?.name || selectedId);
+    setFile(null); // clear any pending upload
+  };
 
   if (status === "loading") return <p>Loading...</p>;
   if (!session) return <p>Not signed in</p>;
 
-  /** 🔹 Updated file card renderer */
+  const orgIds = session.user?.orgIds || [];
+  const isMultiOrg = orgIds.length > 1;
+
   const renderFileCards = (files) =>
     files.map((f) => {
       const dateStr = f.lastModified
         ? new Date(f.lastModified).toISOString().split("T")[0]
         : "";
-
       return (
         <div
           key={f.name}
@@ -103,25 +125,13 @@ export default function ClientPage() {
           onMouseEnter={(e) => (e.currentTarget.style.transform = "scale(1.02)")}
           onMouseLeave={(e) => (e.currentTarget.style.transform = "scale(1)")}
         >
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-            }}
-          >
-            <div
-              style={{
-                fontWeight: "600",
-                color: "var(--dark-carolina)",
-                wordBreak: "break-word",
-              }}
-            >
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <div style={{ fontWeight: "600", color: "var(--dark-carolina)", wordBreak: "break-word" }}>
               {f.name}
             </div>
             <button
               onClick={(e) => {
-                e.stopPropagation(); // ⛔ prevent opening new tab
+                e.stopPropagation();
                 const link = document.createElement("a");
                 link.href = f.url;
                 link.download = f.name;
@@ -130,25 +140,13 @@ export default function ClientPage() {
                 document.body.removeChild(link);
               }}
               title="Download file"
-              style={{
-                background: "none",
-                border: "none",
-                fontSize: "1.2rem",
-                cursor: "pointer",
-              }}
+              style={{ background: "none", border: "none", fontSize: "1.2rem", cursor: "pointer" }}
             >
               ⬇️
             </button>
           </div>
           {dateStr && (
-            <div
-              style={{
-                fontSize: "0.85rem",
-                fontStyle: "italic",
-                color: "#444",
-                marginTop: "0.4rem",
-              }}
-            >
+            <div style={{ fontSize: "0.85rem", fontStyle: "italic", color: "#444", marginTop: "0.4rem" }}>
               Date uploaded: {dateStr}
             </div>
           )}
@@ -158,14 +156,54 @@ export default function ClientPage() {
 
   return (
     <div style={{ padding: "2rem", color: "var(--dark-carolina)" }}>
-      <h1>{session.user?.orgName || "N/A"}&apos;s Dashboard</h1>
+
+      {/* ✅ Campaign switcher — only shown if user has multiple orgs */}
+      {isMultiOrg && (
+        <div style={{
+          background: "#f0f4ff",
+          border: "1px solid #c7d4f0",
+          borderRadius: "12px",
+          padding: "1rem 1.5rem",
+          marginBottom: "1.5rem",
+          display: "flex",
+          alignItems: "center",
+          gap: "1rem",
+        }}>
+          <label style={{ fontWeight: 600, whiteSpace: "nowrap" }}>
+            Viewing Campaign:
+          </label>
+          <select
+            value={activeOrgId || ""}
+            onChange={handleCampaignSwitch}
+            style={{
+              padding: "0.5rem 1rem",
+              borderRadius: "8px",
+              border: "1px solid #c7d4f0",
+              fontSize: "1rem",
+              background: "#fff",
+              color: "var(--dark-carolina)",
+              fontWeight: 600,
+              cursor: "pointer",
+              flex: 1,
+            }}
+          >
+            {orgIds.map((org) => (
+              <option key={org.id} value={org.id}>
+                {org.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+
+      <h1>{activeOrgName || session.user?.orgName || "Dashboard"}</h1>
 
       {/* Upload section */}
       <section style={{ marginTop: "2rem" }}>
         <h2>Upload Files</h2>
         <FileDropZone onFileSelect={(f) => setFile(f)} />
         <button
-          onClick={() => handleUpload(file, setOutboundFiles)}
+          onClick={() => handleUpload(file, activeOrgId, setOutboundFiles)}
           disabled={!file}
           style={{
             marginTop: "1rem",
@@ -189,14 +227,12 @@ export default function ClientPage() {
         ) : inboundFiles.length === 0 ? (
           <p>No files available.</p>
         ) : (
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))",
-              gap: "1.5rem",
-              marginTop: "1rem",
-            }}
-          >
+          <div style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))",
+            gap: "1.5rem",
+            marginTop: "1rem",
+          }}>
             {renderFileCards(inboundFiles)}
           </div>
         )}
@@ -210,14 +246,12 @@ export default function ClientPage() {
         ) : outboundFiles.length === 0 ? (
           <p>No files available.</p>
         ) : (
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))",
-              gap: "1.5rem",
-              marginTop: "1rem",
-            }}
-          >
+          <div style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))",
+            gap: "1.5rem",
+            marginTop: "1rem",
+          }}>
             {renderFileCards(outboundFiles)}
           </div>
         )}
@@ -226,25 +260,28 @@ export default function ClientPage() {
   );
 }
 
-// Upload + refresh outbound files
-async function handleUpload(file, setOutboundFiles) {
-  if (!file) return;
+// ✅ Now accepts activeOrgId to upload to the correct campaign folder
+async function handleUpload(file, activeOrgId, setOutboundFiles) {
+  if (!file || !activeOrgId) return;
 
   try {
     let contentType = file.type;
     if (!contentType) {
       const ext = file.name.split(".").pop().toLowerCase();
       const shapefileExtensions = ["shp", "shx", "dbf", "prj", "cpg"];
-      if (shapefileExtensions.includes(ext)) {
-        contentType = "application/octet-stream";
-      } else {
-        contentType = "application/octet-stream";
-      }
+      contentType = shapefileExtensions.includes(ext)
+        ? "application/octet-stream"
+        : "application/octet-stream";
     }
 
     const res = await fetch("/api/s3/upload", {
       method: "POST",
-      body: JSON.stringify({ fileName: file.name, fileType: contentType }),
+      body: JSON.stringify({
+        fileName: file.name,
+        fileType: contentType,
+        // ✅ Tell the upload API which org's outbound folder to use
+        targetOrgId: activeOrgId,
+      }),
       headers: { "Content-Type": "application/json" },
     });
 
@@ -252,10 +289,13 @@ async function handleUpload(file, setOutboundFiles) {
     const { url } = await res.json();
 
     await fetch(url, { method: "PUT", body: file, headers: { "Content-Type": contentType } });
-
     alert("File uploaded!");
 
-    const listRes = await fetch("/api/s3/listOrgFiles", { method: "POST" });
+    const listRes = await fetch("/api/s3/listOrgFiles", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ orgId: activeOrgId }),
+    });
     if (listRes.ok) {
       const data = await listRes.json();
       setOutboundFiles(data.outbound || []);
