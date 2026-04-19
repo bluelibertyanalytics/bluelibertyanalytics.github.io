@@ -14,7 +14,7 @@ export const authOptions = {
   secret: process.env.NEXTAUTH_SECRET,
   session: {
     strategy: "jwt",
-    maxAge: 60 * 60, // 1 hour
+    maxAge: 60 * 60,
   },
   providers: [
     CognitoProvider({
@@ -49,8 +49,19 @@ export const authOptions = {
 
         user.role = result.Item.role?.S || "client";
         user.firstName = result.Item.firstName?.S || user.name?.split(" ")[0] || "";
-        user.orgId = result.Item.orgId?.S || null;
         user.orgName = result.Item.orgName?.S || null;
+
+        // ✅ Read orgIds as a DynamoDB StringSet (SS)
+        // Falls back to wrapping legacy single orgId in an array
+        const rawOrgIds = result.Item.orgIds?.SS
+          || (result.Item.orgId?.S ? [result.Item.orgId.S] : []);
+
+        const orgNamesMap = result.Item.orgNames?.M || {};
+        user.orgIds = rawOrgIds.map((id) => ({
+            id,
+            name: orgNamesMap[id]?.S || id  // friendly name, falls back to id if missing
+        }));
+        user.orgId = rawOrgIds[0] || null; // default active org
 
         return true;
       } catch (err) {
@@ -63,7 +74,8 @@ export const authOptions = {
       if (user) {
         token.role = user.role || "client";
         token.firstName = user.firstName || "";
-        token.orgId = user.orgId || null;
+        token.orgIds = user.orgIds || [];          // ✅ array of {id, name}
+        token.orgId = user.orgId || null;           // default/active org
         token.orgName = user.orgName || null;
       }
       return token;
@@ -73,7 +85,8 @@ export const authOptions = {
       if (token) {
         session.user.role = token.role;
         session.user.firstName = token.firstName;
-        session.user.orgId = token.orgId || null;
+        session.user.orgIds = token.orgIds || [];   // ✅ full list for switcher
+        session.user.orgId = token.orgId || null;   // default active org
         session.user.orgName = token.orgName || null;
       }
       return session;
@@ -87,12 +100,10 @@ export const authOptions = {
   },
   events: {
     async signOut({ token, session }) {
-      // Additional cleanup on sign out
       console.log("User signed out, clearing state");
     },
   },
 };
 
 const handler = NextAuth(authOptions);
-
 export { handler as GET, handler as POST };

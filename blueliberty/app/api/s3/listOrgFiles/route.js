@@ -7,35 +7,39 @@ const s3 = new S3Client({ region: process.env.AWS_REGION });
 
 export async function POST(req) {
   try {
-    // 🔹 Get session
     const session = await getServerSession(authOptions);
-    console.log("Session:", session);
-
     if (!session) {
       return Response.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const orgId = session.user?.orgId;
-    if (!orgId) {
-      return Response.json({ error: "Missing orgId in session" }, { status: 401 });
+    // ✅ Read requested orgId from body, fall back to session default
+    const body = await req.json().catch(() => ({}));
+    const requestedOrgId = body.orgId || session.user?.orgId;
+
+    // ✅ Security check — verify user actually belongs to this org
+    const allowedOrgIds = (session.user?.orgIds || []).map((o) => o.id);
+    // Also allow legacy single orgId in case orgIds isn't populated yet
+    if (session.user?.orgId) allowedOrgIds.push(session.user.orgId);
+
+    if (!requestedOrgId || !allowedOrgIds.includes(requestedOrgId)) {
+      console.warn(`Blocked: user ${session.user.email} requested orgId ${requestedOrgId}, allowed: ${allowedOrgIds}`);
+      return Response.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    console.log("Fetching files for orgId:", orgId);
+    console.log("Fetching files for orgId:", requestedOrgId);
 
     const results = { inbound: [], outbound: [] };
 
+    // ✅ Use requestedOrgId instead of session.user.orgId
     for (const folder of ["inbound", "outbound"]) {
       try {
         const params = {
           Bucket: process.env.AWS_S3_BUCKET,
-          Prefix: `clients/${orgId}/${folder}/`,
+          Prefix: `clients/${requestedOrgId}/${folder}/`,
         };
-        console.log("S3 ListObjectsV2Command params:", params);
 
         const listFilesCmd = new ListObjectsV2Command(params);
         const res = await s3.send(listFilesCmd);
-
-        console.log(`S3 response for ${folder}:`, res);
 
         if (res.Contents && res.Contents.length > 0) {
           const files = await Promise.all(
@@ -55,15 +59,12 @@ export async function POST(req) {
               })
           );
 
-          // Sort newest first
           results[folder] = files.sort(
             (a, b) => new Date(b.lastModified) - new Date(a.lastModified)
           );
-        } else {
-          console.log(`No files found in folder: ${folder}`);
         }
       } catch (err) {
-        console.error(`S3 list failed for folder ${folder} and orgId ${orgId}:`, err);
+        console.error(`S3 list failed for folder ${folder}:`, err);
         return Response.json(
           { error: `Failed to list ${folder} files`, details: err.message },
           { status: 500 }
