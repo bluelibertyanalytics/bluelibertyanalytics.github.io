@@ -48,6 +48,26 @@ function FileDropZone({ onFileSelect }) {
   );
 }
 
+/** 🔹 Shared blob-based download helper */
+async function downloadFile(url, name) {
+  try {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error("Download request failed");
+    const blob = await res.blob();
+    const blobUrl = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = blobUrl;
+    link.download = name;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(blobUrl);
+  } catch (err) {
+    console.error("Download failed:", err);
+    alert("Download failed. Please try again.");
+  }
+}
+
 /** 🔹 User Creation Widget */
 function UserCreationWidget({ orgOptions = [] }) {
   const [mode, setMode] = useState("new"); // "new" or "addCampaign"
@@ -76,8 +96,6 @@ function UserCreationWidget({ orgOptions = [] }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    // Validation
-    // AFTER
     if (mode === "new" && (!formData.email || !formData.firstName || !formData.lastName || !formData.orgName || !formData.orgId)) {
       setMessage("All fields are required");
       setMessageType("error");
@@ -100,14 +118,13 @@ function UserCreationWidget({ orgOptions = [] }) {
             firstName: formData.firstName,
             lastName: formData.lastName,
             orgName: formData.orgName,
-            orgIds: [formData.orgId],  // ✅ always send as array
+            orgIds: [formData.orgId],
             role: formData.role,
           }
         : {
             email: formData.email,
-            orgIds: [formData.orgId],  // ✅ Lambda will ADD to existing set
+            orgIds: [formData.orgId],
             orgName: formData.orgName,
-            // firstName/lastName/role not needed for existing users
           };
 
       const res = await fetch("/api/lambda/CreateUser", {
@@ -174,7 +191,6 @@ function UserCreationWidget({ orgOptions = [] }) {
         User Management
       </h2>
 
-      {/* ✅ Mode Toggle */}
       <div style={{
         display: "grid",
         gridTemplateColumns: "1fr 1fr",
@@ -207,7 +223,6 @@ function UserCreationWidget({ orgOptions = [] }) {
 
       <form onSubmit={handleSubmit}>
 
-        {/* Email — always shown */}
         <div style={{ marginBottom: "1rem" }}>
           <label style={labelStyle}>Email *</label>
           <input
@@ -220,7 +235,6 @@ function UserCreationWidget({ orgOptions = [] }) {
           />
         </div>
 
-        {/* New user only fields */}
         {mode === "new" && (
           <>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem", marginBottom: "1rem" }}>
@@ -263,7 +277,6 @@ function UserCreationWidget({ orgOptions = [] }) {
           </>
         )}
 
-        {/* Add campaign mode hint */}
         {mode === "addCampaign" && (
           <div style={{
             background: "#f0f4ff",
@@ -278,7 +291,6 @@ function UserCreationWidget({ orgOptions = [] }) {
           </div>
         )}
 
-        {/* Org fields — always shown */}
         <div style={{ marginBottom: "1rem" }}>
           <label style={labelStyle}>Organization Name *</label>
           <input
@@ -303,7 +315,6 @@ function UserCreationWidget({ orgOptions = [] }) {
           />
         </div>
 
-        {/* Message */}
         {message && (
           <div style={{
             padding: "0.75rem",
@@ -350,6 +361,7 @@ export default function AdminPage() {
   const [newFiles, setNewFiles] = useState([]);
   const [file, setFile] = useState(null);
   const [selectedOrg, setSelectedOrg] = useState("");
+  const [downloadingFile, setDownloadingFile] = useState(null);
 
   useEffect(() => {
     if (status !== "authenticated") return;
@@ -384,47 +396,52 @@ export default function AdminPage() {
     fetchAll();
   }, [status]);
 
-const handleUpload = async () => {
-  if (!file || !selectedOrg) {
-    alert("Please select an org and a file");
-    return;
-  }
-
-  try {
-    // Determine Content-Type
-    let contentType = file.type;
-    const ext = file.name.split(".").pop().toLowerCase();
-    const shapefileExtensions = ["shp", "shx", "dbf", "prj", "cpg"];
-
-    if (shapefileExtensions.includes(ext)) {
-      contentType = "application/octet-stream"; // binary-safe for shapefile parts
-    } else if (!contentType) {
-      contentType = "application/octet-stream"; // fallback for unknown types
+  const handleUpload = async () => {
+    if (!file || !selectedOrg) {
+      alert("Please select an org and a file");
+      return;
     }
 
-    const res = await fetch("/api/s3/upload", {
-      method: "POST",
-      body: JSON.stringify({
-        fileName: file.name,
-        fileType: contentType,
-        targetOrgId: selectedOrg,
-      }),
-      headers: { "Content-Type": "application/json" },
-    });
+    try {
+      let contentType = file.type;
+      const ext = file.name.split(".").pop().toLowerCase();
+      const shapefileExtensions = ["shp", "shx", "dbf", "prj", "cpg"];
 
-    const { url } = await res.json();
+      if (shapefileExtensions.includes(ext)) {
+        contentType = "application/octet-stream";
+      } else if (!contentType) {
+        contentType = "application/octet-stream";
+      }
 
-    await fetch(url, { method: "PUT", body: file, headers: { "Content-Type": contentType } });
+      const res = await fetch("/api/s3/upload", {
+        method: "POST",
+        body: JSON.stringify({
+          fileName: file.name,
+          fileType: contentType,
+          targetOrgId: selectedOrg,
+        }),
+        headers: { "Content-Type": "application/json" },
+      });
 
-    alert(`File uploaded to ${selectedOrg}/inbound ✅`);
-    setFile(null);
-    setSelectedOrg("");
-  } catch (err) {
-    console.error(err);
-    alert("Upload failed");
-  }
-};
+      const { url } = await res.json();
 
+      await fetch(url, { method: "PUT", body: file, headers: { "Content-Type": contentType } });
+
+      alert(`File uploaded to ${selectedOrg}/inbound ✅`);
+      setFile(null);
+      setSelectedOrg("");
+    } catch (err) {
+      console.error(err);
+      alert("Upload failed");
+    }
+  };
+
+  const handleDownload = async (e, f) => {
+    e.stopPropagation();
+    setDownloadingFile(f.name);
+    await downloadFile(f.url, f.name);
+    setDownloadingFile(null);
+  };
 
   if (status === "loading") return <p>Loading...</p>;
   if (!session) return null;
@@ -521,6 +538,7 @@ const handleUpload = async () => {
                       .sort((a, b) => new Date(b.lastModified) - new Date(a.lastModified))
                       .map((f) => {
                         const dateStr = f.lastModified ? new Date(f.lastModified).toISOString().split("T")[0] : "";
+                        const isDownloading = downloadingFile === f.name;
                         return (
                           <div
                             key={f.name}
@@ -541,19 +559,18 @@ const handleUpload = async () => {
                             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                               <span style={{ fontWeight: 600, wordBreak: "break-word" }}>{f.name}</span>
                               <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  const link = document.createElement("a");
-                                  link.href = f.url;
-                                  link.download = f.name;
-                                  document.body.appendChild(link);
-                                  link.click();
-                                  document.body.removeChild(link);
+                                onClick={(e) => handleDownload(e, f)}
+                                disabled={isDownloading}
+                                title={isDownloading ? "Downloading..." : "Download file"}
+                                style={{
+                                  background: "none",
+                                  border: "none",
+                                  fontSize: "1.2rem",
+                                  cursor: isDownloading ? "wait" : "pointer",
+                                  opacity: isDownloading ? 0.5 : 1,
                                 }}
-                                title="Download file"
-                                style={{ background: "none", border: "none", fontSize: "1.2rem", cursor: "pointer" }}
                               >
-                                ⬇️
+                                {isDownloading ? "⏳" : "⬇️"}
                               </button>
                             </div>
                             {dateStr && (
